@@ -1,0 +1,95 @@
+
+import json
+from pathlib import Path
+
+from fastapi import FastAPI, HTTPException
+from pydantic import BaseModel
+
+app = FastAPI(title="Meeting Scope Agent")
+
+BASE_DIR = Path(__file__).parent
+
+
+class MeetingRequest(BaseModel):
+    notes: str
+
+
+def analyze_meeting(notes: str):
+    lines = [line.strip() for line in notes.splitlines() if line.strip()]
+
+    deliverables = []
+    risks = []
+    action_items = []
+    requirements = []
+
+    for line in lines:
+        lower_line = line.lower()
+
+        if "deliverables:" in lower_line:
+            deliverables.extend(
+                item.strip()
+                for item in line.split(":", 1)[1].split(",")
+                if item.strip()
+            )
+
+        elif "risks:" in lower_line or "risk:" in lower_line:
+            risks.append(line.split(":", 1)[1].strip())
+
+        elif lower_line.startswith("action items:"):
+            continue
+
+        elif lower_line.startswith("- "):
+            action_items.append(line[2:].strip())
+
+        elif any(
+            word in lower_line
+            for word in ["agreed to", "should", "must", "need to"]
+        ):
+            requirements.append(line)
+
+    return {
+        "project": next(
+            (
+                line.split(":", 1)[1].strip()
+                for line in lines
+                if line.lower().startswith("project:")
+            ),
+            "Unnamed Project",
+        ),
+        "requirements": requirements,
+        "deliverables": deliverables,
+        "risks": risks,
+        "action_items": action_items,
+        "deadline": next(
+            (
+                line.split(":", 1)[1].strip()
+                for line in lines
+                if line.lower().startswith("deadline:")
+            ),
+            "Not specified",
+        ),
+    }
+
+
+@app.get("/")
+def home():
+    return {"message": "Meeting Scope Agent is running"}
+
+
+@app.post("/analyze-meeting")
+def analyze_meeting_endpoint(request: MeetingRequest):
+    if not request.notes.strip():
+        raise HTTPException(status_code=400, detail="Meeting notes cannot be empty")
+
+    return analyze_meeting(request.notes)
+
+
+@app.post("/analyze-sample")
+def analyze_sample():
+    notes_path = BASE_DIR / "meeting_notes.txt"
+
+    if not notes_path.exists():
+        raise HTTPException(status_code=404, detail="meeting_notes.txt not found")
+
+    notes = notes_path.read_text(encoding="utf-8")
+    return analyze_meeting(notes)

@@ -1,0 +1,15 @@
+
+Project: Online Shopping Website
+
+The team agreed to build a website where users can register, log in, browse products, add items to a cart, and place orders.
+
+Deliverables: Login page, product listing, shopping cart, and order confirmation page.
+
+Deadline: Three weeks.
+
+Risks: Payment integration may take longer than expected.
+
+Action items:
+- Developer: Build login and registration.
+- UI designer: Prepare product and cart screens.
+- Tester: Prepare test cases.
