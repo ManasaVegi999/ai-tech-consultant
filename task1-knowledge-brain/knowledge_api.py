@@ -7,7 +7,7 @@ from fastapi import FastAPI, Query
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-from knowledge_brain import search_articles
+from knowledge_brain import search_articles, refresh_knowledge_base
 
 app = FastAPI(title="AI Tech Consultant - Knowledge Brain")
 
@@ -91,4 +91,12 @@ def ask_knowledge(request: AskRequest):
             {"title": item["title"], "url": item["url"]}
             for item in matches
         ],
+    }
+
+@app.post("/refresh")
+def refresh_knowledge():
+    count = refresh_knowledge_base()
+    return {
+        "message": "Knowledge base refresh completed",
+        "articles_saved": count
     }

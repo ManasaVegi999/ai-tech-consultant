@@ -1,5 +1,4 @@
 
-import json
 from pathlib import Path
 
 from fastapi import FastAPI, HTTPException
@@ -15,15 +14,34 @@ class MeetingRequest(BaseModel):
 
 
 def analyze_meeting(notes: str):
-    lines = [line.strip() for line in notes.splitlines() if line.strip()]
+    lines = [
+        line.strip()
+        for line in notes.splitlines()
+        if line.strip()
+    ]
 
     deliverables = []
     risks = []
     action_items = []
     requirements = []
+    scope_changes = []
 
     for line in lines:
         lower_line = line.lower()
+
+        # Detect possible scope changes
+        if any(
+            phrase in lower_line
+            for phrase in [
+                "scope change",
+                "change request",
+                "additional feature",
+                "new requirement",
+                "remove the feature",
+                "instead of",
+            ]
+        ):
+            scope_changes.append(line)
 
         if "deliverables:" in lower_line:
             deliverables.extend(
@@ -47,27 +65,49 @@ def analyze_meeting(notes: str):
         ):
             requirements.append(line)
 
-    return {
-        "project": next(
-            (
-                line.split(":", 1)[1].strip()
-                for line in lines
-                if line.lower().startswith("project:")
-            ),
-            "Unnamed Project",
+    project = next(
+        (
+            line.split(":", 1)[1].strip()
+            for line in lines
+            if line.lower().startswith("project:")
         ),
+        "Unnamed Project",
+    )
+
+    deadline = next(
+        (
+            line.split(":", 1)[1].strip()
+            for line in lines
+            if line.lower().startswith("deadline:")
+        ),
+        "Not specified",
+    )
+
+    # Simple demonstration estimate, not a validated prediction
+    estimated_hours = max(
+        4,
+        len(requirements) * 2
+        + len(deliverables) * 3
+        + len(action_items)
+        + len(scope_changes) * 2,
+    )
+
+    return {
+        "project": project,
         "requirements": requirements,
         "deliverables": deliverables,
         "risks": risks,
         "action_items": action_items,
-        "deadline": next(
-            (
-                line.split(":", 1)[1].strip()
-                for line in lines
-                if line.lower().startswith("deadline:")
+        "deadline": deadline,
+        "scope_changes": scope_changes,
+        "effort_estimate": {
+            "status": "Rough estimate only",
+            "estimated_hours": estimated_hours,
+            "note": (
+                "Rule-based estimate for demonstration. "
+                "Confirm complexity and dependencies with the project team."
             ),
-            "Not specified",
-        ),
+        },
     }
 
 
@@ -79,7 +119,10 @@ def home():
 @app.post("/analyze-meeting")
 def analyze_meeting_endpoint(request: MeetingRequest):
     if not request.notes.strip():
-        raise HTTPException(status_code=400, detail="Meeting notes cannot be empty")
+        raise HTTPException(
+            status_code=400,
+            detail="Meeting notes cannot be empty",
+        )
 
     return analyze_meeting(request.notes)
 
@@ -89,7 +132,10 @@ def analyze_sample():
     notes_path = BASE_DIR / "meeting_notes.txt"
 
     if not notes_path.exists():
-        raise HTTPException(status_code=404, detail="meeting_notes.txt not found")
+        raise HTTPException(
+            status_code=404,
+            detail="meeting_notes.txt not found",
+        )
 
     notes = notes_path.read_text(encoding="utf-8")
     return analyze_meeting(notes)

@@ -1,4 +1,5 @@
-
+import json
+from datetime import datetime, timezone
 import os
 import sys
 from pathlib import Path
@@ -83,3 +84,43 @@ def draft_reply(email: EmailRequest):
             status_code=502,
             detail=f"Could not generate a draft: {type(error).__name__}",
         )
+FEEDBACK_FILE = Path(__file__).parent / "feedback.json"
+
+
+class FeedbackRequest(BaseModel):
+    subject: str = Field(min_length=1, max_length=300)
+    rating: str = Field(pattern="^(helpful|not_helpful)$")
+    comments: str = Field(default="", max_length=2000)
+
+
+@app.post("/feedback")
+def save_feedback(feedback: FeedbackRequest):
+    records = []
+
+    if FEEDBACK_FILE.exists():
+        try:
+            records = json.loads(
+                FEEDBACK_FILE.read_text(encoding="utf-8")
+            )
+        except (json.JSONDecodeError, OSError):
+            raise HTTPException(
+                status_code=500,
+                detail="Could not read the feedback file",
+            )
+
+    records.append({
+        "subject": feedback.subject,
+        "rating": feedback.rating,
+        "comments": feedback.comments,
+        "created_at": datetime.now(timezone.utc).isoformat(),
+    })
+
+    FEEDBACK_FILE.write_text(
+        json.dumps(records, indent=2, ensure_ascii=False),
+        encoding="utf-8",
+    )
+
+    return {
+        "message": "Feedback saved successfully",
+        "feedback_count": len(records),
+    }
